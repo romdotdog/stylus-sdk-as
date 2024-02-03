@@ -1,0 +1,26 @@
+{
+    "name": "stylus-sdk-as",
+    "author": "romdotdog",
+    "version": "0.0.0",
+    "scripts": {
+        "asbuild:debug": "asc assembly/index.ts --target debug",
+        "asbuild:release": "asc assembly/index.ts --target release",
+        "asbuild": "npm run asbuild:debug && npm run asbuild:release"
+    },
+    "license": "MIT",
+    "devDependencies": {
+        "assemblyscript": "^0.27.24",
+        "typescript": "^5.3.3"
+    },
+    "type": "module",
+    "exports": {
+        ".": {
+            "import": "./build/release.js",
+            "types": "./build/release.d.ts"
+        }
+    },
+    "dependencies": {
+        "as-bignum": "^0.3.0",
+        "ethers": "^6.10.0"
+    }
+}
