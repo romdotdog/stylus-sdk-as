@@ -1,5 +1,6 @@
 {
     "name": "stylus-sdk-as",
+    "type": "module",
     "author": "romdotdog",
     "version": "0.0.0",
     "scripts": {
@@ -12,15 +13,11 @@
         "assemblyscript": "^0.27.24",
         "typescript": "^5.3.3"
     },
-    "type": "module",
-    "exports": {
-        ".": {
-            "import": "./build/release.js",
-            "types": "./build/release.d.ts"
-        }
-    },
     "dependencies": {
         "as-bignum": "^0.3.0",
         "ethers": "^6.10.0"
+    },
+    "peerDependencies": {
+        "binaryen": "*"
     }
 }

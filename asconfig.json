@@ -11,6 +11,7 @@
             "textFile": "build/release.wat",
             "sourceMap": true,
             "optimizeLevel": 3,
+            "shrinkLevel": 2,
             "converge": false,
             "noAssert": false
         }
@@ -18,8 +19,8 @@
     "options": {
         "bindings": "raw",
         "runtime": "stub",
-        "shrinkLevel": 2,
-        "use": "abort=assembly/index/abort",
-        "disable": "bulk-memory"
+        "use": "abort=",
+        "disable": "bulk-memory",
+        "transform": "/home/rom/stylus-sdk-as/dist/transform.js"
     }
 }
