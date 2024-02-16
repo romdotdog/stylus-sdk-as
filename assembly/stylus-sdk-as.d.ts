@@ -3,23 +3,14 @@ type u256 = import("as-bignum").u256;
 
 declare function entrypoint(c: Constructor): void;
 
-interface GetAddress {
-    get address(): Address;
-}
-
-declare abstract class Contract implements GetAddress {
+declare abstract class Contract {
     private _$_address: Address;
     get address(): Address;
     static fromAddress<T extends Contract>(this: T, address: Address): ExternalContract<T>;
 }
 
-declare const ContractAnd: {
-    new <T extends Contract>(data: T): ContractAnd<T>;
-} & typeof Contract;
-declare type ContractAnd<T extends Contract> = T;
-
 declare const ExternalContract: new <T extends Contract>(address: Address) => ExternalContract<T>;
-declare type ExternalContract<T extends Contract> = GetAddress & ExternalContractMethods<T>;
+declare type ExternalContract<T extends Contract> = { get address(): Address } & ExternalContractMethods<T>;
 
 type AddValue<T> = T extends (...args: infer Args) => infer R ? (...args: [...Args, value?: number]) => R : never;
 type AddGas<T> = T extends (...args: infer Args) => infer R ? (...args: [...Args, gas?: number]) => R : never;

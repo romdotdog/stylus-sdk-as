@@ -3,7 +3,6 @@ import { HostIO } from "./hostio";
 import { Address } from "./Address";
 
 const buffer1 = memory.data(32);
-const buffer2 = memory.data(32);
 
 function loadU256BE(buffer: usize): u256 {
     const data = u256.Zero;
@@ -43,7 +42,9 @@ export function output(value: u256): void {
     HostIO.write_result(changetype<usize>(buffer1), 32);
 }
 
-export function args(len: usize): StaticArray<u8> {
+export function args(lenUSize: usize): StaticArray<u8> {
+    const len = <i32>lenUSize;
+    assert(len >= 4);
     const args = new StaticArray<u8>(len);
     HostIO.read_args(args);
     return args;

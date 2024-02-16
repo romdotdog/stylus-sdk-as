@@ -20,6 +20,10 @@ export declare namespace HostIO {
     export function read_args(dest: StaticArray<u8>): void;
 
     // @ts-ignore
+    @external("vm_hooks", "emit_log")
+    export function emit_log(data: usize, len: usize, topics: usize): void;
+
+    // @ts-ignore
     @external("vm_hooks", "storage_load_bytes32")
     export function storage_load_bytes32(key: usize, dest: usize): void;
 

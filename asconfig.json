@@ -21,6 +21,6 @@
         "runtime": "stub",
         "use": "abort=",
         "disable": "bulk-memory",
-        "transform": "/home/rom/stylus-sdk-as/dist/transform.js"
+        "transform": "/home/rom/stylus-sdk-as/dist/index.js"
     }
 }
