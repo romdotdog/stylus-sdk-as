@@ -4,6 +4,15 @@ import { Address } from "./Address";
 
 const buffer1 = memory.data(32);
 
+export function emit<T extends Event>(e: T): void {
+    // @ts-ignore: serialize
+    const fullData: StaticArray<u8> = e.serialize();
+    const topics = fullData[0];
+    const len = fullData.length - 1;
+    const ptr = changetype<usize>(fullData) + 1;
+    HostIO.emit_log(ptr, len, topics);
+}
+
 function loadU256BE(buffer: usize): u256 {
     const data = u256.Zero;
     data.hi2 = bswap<u64>(i64.load(buffer, 0));
@@ -62,6 +71,7 @@ export function contract_address(): Address {
 let RETURN_DATA_LEN = 0;
 
 export namespace Contract {
+    // not tested yet
     function deploy(code: Uint8Array, endowment: u256): Address | null {
         // TODO: cache policy
 

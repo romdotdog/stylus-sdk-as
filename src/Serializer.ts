@@ -3,6 +3,7 @@ import { TypeVisitor } from "./TypeVisitor.js";
 import { SimpleParser } from "./SimpleParser.js";
 import { isPropertyPrototype } from "./guards.js";
 
+// TODO: sign extend?
 export class Serializer extends TypeVisitor<string, void> {
     constructor(program: Program, range: Range, public offset: number = 0, public stmts: Statement[] = []) {
         super(program, range);

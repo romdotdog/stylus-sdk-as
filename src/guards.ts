@@ -13,7 +13,8 @@ import {
     BlockStatement,
     Expression,
     IdentifierExpression,
-    TypeName
+    TypeName,
+    NamedTypeNode
 } from "assemblyscript";
 
 export function isClassPrototype(elem: DeclaredElement): elem is ClassPrototype {
@@ -54,4 +55,8 @@ export function isIdentifier(expr: Expression): expr is IdentifierExpression {
 
 export function isTypeName(expr: Expression): expr is TypeName {
     return expr.kind === NodeKind.TypeName;
+}
+
+export function isNamedTypeNode(expr: Expression): expr is NamedTypeNode {
+    return expr.kind === NodeKind.NamedType;
 }

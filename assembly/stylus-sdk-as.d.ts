@@ -3,6 +3,10 @@ type u256 = import("as-bignum").u256;
 
 declare function entrypoint(c: Constructor): void;
 
+declare abstract class Event {}
+
+declare type Indexed<T> = T;
+
 declare abstract class Contract {
     private _$_address: Address;
     get address(): Address;

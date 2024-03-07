@@ -7,7 +7,6 @@ import {
     Statement,
     ClassDeclaration,
     Compiler,
-    Program,
     FunctionPrototype,
     CommonFlags,
     Node,
@@ -17,11 +16,14 @@ import {
     TypeKind,
     CommonNames,
     ASTBuilder,
+    NodeKind,
     Source,
-    SourceKind,
     MethodDeclaration,
-    NodeKind
+    BlockStatement,
+    FieldDeclaration,
+    PropertyPrototype
 } from "assemblyscript";
+import { Program as UnlockedProgram } from "types:assemblyscript/src/program";
 import binaryenModule from "types:assemblyscript/src/glue/binaryen";
 import lamearyen from "binaryen";
 import { id } from "ethers";
@@ -35,7 +37,10 @@ import {
     isFunctionPrototype,
     isFunctionDeclaration,
     isBlock,
-    isMethodDeclaration
+    isMethodDeclaration,
+    isFieldDeclaration,
+    isNamedTypeNode,
+    isPropertyPrototype
 } from "./guards.js";
 import { Deserializer } from "./Deserializer.js";
 import { Serializer } from "./Serializer.js";
@@ -46,7 +51,10 @@ const binaryen = lamearyen as unknown as typeof binaryenModule;
 
 export default class extends Transform {
     private entrypoint: ClassDeclaration | null = null;
+    private eventDeclaration: ClassDeclaration | null = null;
     private contracts: Set<ClassDeclaration> = new Set();
+    private events: Set<ClassDeclaration> = new Set();
+    private indexed: Set<FieldDeclaration> = new Set();
 
     ensureContract(contract: ClassDeclaration) {
         const members = contract.members;
@@ -89,17 +97,77 @@ export default class extends Transform {
         );
     }
 
+    ensureEvent(parser: Parser, event: ClassDeclaration, src: Source) {
+        // TODO: only do this once
+        src.statements.unshift(
+            Node.createImportStatement(
+                [Node.createImportDeclaration(Node.createIdentifierExpression("Event", src.range), null, src.range)],
+                Node.createStringLiteralExpression("./Event", src.range),
+                src.range
+            )
+        );
+
+        const members = event.members;
+        let indexedCount = 0;
+        for (const member of members) {
+            if (
+                isFieldDeclaration(member) &&
+                member.type &&
+                isNamedTypeNode(member.type) &&
+                member.type.name.identifier.text === "Indexed"
+            ) {
+                if (member.type.typeArguments === null || member.type.typeArguments.length > 1) {
+                    parser.error(
+                        DiagnosticCode.Transform_0_1,
+                        member.range,
+                        "stylus-sdk-as",
+                        "`Indexed` must have exactly one type parameter."
+                    );
+                    continue;
+                }
+                member.type = member.type.typeArguments[0];
+                if (indexedCount === 3) {
+                    parser.error(
+                        DiagnosticCode.Transform_0_1,
+                        member.range,
+                        "stylus-sdk-as",
+                        "Cannot have more than 3 `Indexed` fields."
+                    );
+                    continue;
+                }
+                this.indexed.add(member);
+                indexedCount += 1;
+            }
+        }
+
+        members.push(SimpleParser.parseClassMember(`serialize(): StaticArray<u8> {}`, event));
+    }
+
     afterParse(parser: Parser) {
         for (const src of parser.sources) {
             if (src.isLibrary) continue;
 
-            for (const stmt of src.statements) {
+            const stmts = src.statements.slice(); // events might prepend a statement
+            for (const stmt of stmts) {
                 if (!isClassDeclaration(stmt)) continue;
+                if (stmt.range.source.normalizedPath == "assembly/Event.ts") {
+                    this.eventDeclaration = stmt;
+                    continue;
+                }
+
                 const extendsType = stmt.extendsType;
-                if (extendsType && isTypeName(extendsType.name) && extendsType.name.identifier.text === "Contract") {
-                    this.contracts.add(stmt);
-                    stmt.extendsType = null;
-                    this.ensureContract(stmt);
+                if (extendsType && isTypeName(extendsType.name)) {
+                    switch (extendsType.name.identifier.text) {
+                        case "Contract":
+                            stmt.extendsType = null;
+                            this.contracts.add(stmt);
+                            this.ensureContract(stmt);
+                            break;
+                        case "Event":
+                            this.events.add(stmt);
+                            this.ensureEvent(parser, stmt, src);
+                            break;
+                    }
                 }
 
                 if (!stmt.decorators) continue;
@@ -145,6 +213,105 @@ export default class extends Transform {
 
     afterInitialize() {
         if (this.entrypoint === null) return;
+
+        for (const event of this.events) {
+            const proto = this.program.elementsByDeclaration.get(event);
+            if (proto === undefined || !isClassPrototype(proto) || proto.instanceMembers === null) continue;
+            const serialize = proto.instanceMembers.get("serialize");
+            if (
+                serialize === undefined ||
+                !isFunctionPrototype(serialize) ||
+                serialize.bodyNode === null ||
+                !isBlock(serialize.bodyNode)
+            )
+                throw new Error("Event serialize not found");
+            const abi = new ABI(this.program, event.range);
+            const serializer = new Serializer(this.program, event.range, 33, []);
+
+            let topicCount = 1;
+            let signature = proto.name + "(";
+            const instanceMembers = [...proto.instanceMembers.values()];
+            let nonIndexed: [PropertyPrototype, Type][] = [];
+            for (let i = 0; i < instanceMembers.length; ++i) {
+                const member = instanceMembers[i];
+                if (isPropertyPrototype(member) && member.fieldDeclaration) {
+                    if (i > 0) signature += ",";
+                    if (member.typeNode === null) {
+                        this.program.error(
+                            DiagnosticCode.Transform_0_1,
+                            member.declaration.range,
+                            "stylus-sdk-as",
+                            "Type must be specified"
+                        );
+                        continue;
+                    }
+                    const type = this.program.resolver.resolveType(
+                        member.typeNode,
+                        null,
+                        member,
+                        null,
+                        ReportMode.Swallow
+                    );
+                    if (type === null) {
+                        this.program.error(
+                            DiagnosticCode.Transform_0_1,
+                            member.declaration.range,
+                            "stylus-sdk-as",
+                            "Cannot serialize type"
+                        );
+                        continue;
+                    }
+                    const ser = abi.visit(type);
+                    if (ser === null) {
+                        this.program.error(
+                            DiagnosticCode.Transform_0_1,
+                            member.declaration.range,
+                            "stylus-sdk-as",
+                            "Cannot serialize type"
+                        );
+                        continue;
+                    }
+                    signature += ser;
+                    if (this.indexed.has(member.fieldDeclaration)) {
+                        serializer.visit(type, "this." + member.name);
+                        topicCount += 1;
+                    } else {
+                        nonIndexed.push([member, type]);
+                    }
+                }
+            }
+
+            for (const [property, type] of nonIndexed) {
+                serializer.visit(type, "this." + property.name);
+            }
+
+            signature += ")";
+            if (signature === null) continue;
+            const topic0 = id(signature).slice(2);
+
+            function bswap(hex: string): string {
+                const bytes = hex.match(/.{2}/g);
+                return bytes!.reverse().join("");
+            }
+
+            serialize.bodyNode.statements.push(
+                SimpleParser.parseStatement(`const arr = new StaticArray<u8>(${serializer.offset})`, event.range),
+                SimpleParser.parseStatement(`const ptr = changetype<usize>(arr);`, event.range),
+                SimpleParser.parseStatement(`i32.store8(ptr, ${topicCount}, 0);`, event.range),
+                SimpleParser.parseStatement(`i64.store(ptr, 0x${bswap(topic0.slice(0, 16))}, 1);`, event.range),
+                SimpleParser.parseStatement(`i64.store(ptr, 0x${bswap(topic0.slice(16, 32))}, 9);`, event.range),
+                SimpleParser.parseStatement(`i64.store(ptr, 0x${bswap(topic0.slice(32, 48))}, 17);`, event.range),
+                SimpleParser.parseStatement(`i64.store(ptr, 0x${bswap(topic0.slice(48, 64))}, 25);`, event.range),
+                ...serializer.stmts,
+                SimpleParser.parseStatement(`return arr;`, event.range)
+            );
+
+            const builder = new ASTBuilder();
+            builder.visitBlockStatement(serialize.bodyNode);
+            console.log(builder.finish());
+        }
+
+        // deal with entrypoint
 
         const entrypointProto = this.program.elementsByDeclaration.get(this.entrypoint);
         if (entrypointProto === undefined || !isClassPrototype(entrypointProto)) return;

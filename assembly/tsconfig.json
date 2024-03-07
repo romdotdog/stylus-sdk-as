@@ -1,4 +1,7 @@
 {
+    "compilerOptions": {
+        "strictPropertyInitialization": false,
+    },
     "extends": "assemblyscript/std/assembly.json",
     "include": ["./**/*.ts"]
 }

@@ -1,7 +1,8 @@
 import { Class, FunctionPrototype } from "types:assemblyscript/src/program";
 import { Type } from "types:assemblyscript/src/types";
 import { TypeVisitor } from "./TypeVisitor.js";
-import { DiagnosticCode, ReportMode } from "assemblyscript";
+import { ClassPrototype, DiagnosticCode, ReportMode } from "assemblyscript";
+import { isPropertyPrototype } from "./guards.js";
 
 export class ABI extends TypeVisitor<void, string | null> {
     functionSelector(method: FunctionPrototype): string | null {
