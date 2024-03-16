@@ -14,11 +14,16 @@ import {
     Expression,
     IdentifierExpression,
     TypeName,
-    NamedTypeNode
-} from "assemblyscript";
+    NamedTypeNode,
+    ImportStatement
+} from "assemblyscript/dist/assemblyscript.js";
 
 export function isClassPrototype(elem: DeclaredElement): elem is ClassPrototype {
     return elem.kind === ElementKind.ClassPrototype;
+}
+
+export function isImportStatement(stmt: Statement): stmt is ImportStatement {
+    return stmt.kind === NodeKind.Import;
 }
 
 export function isClassDeclaration(stmt: Statement): stmt is ClassDeclaration {

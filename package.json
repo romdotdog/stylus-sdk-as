@@ -6,16 +6,18 @@
     "scripts": {
         "asbuild:debug": "asc assembly/index.ts --target debug",
         "asbuild:release": "asc assembly/index.ts --target release",
-        "asbuild": "npm run asbuild:debug && npm run asbuild:release"
+        "asbuild": "npm run asbuild:debug && npm run asbuild:release",
+        "test": "tsc && node --enable-source-maps dist/tests"
     },
     "license": "MIT",
     "devDependencies": {
         "assemblyscript": "^0.27.24",
+        "dotenv": "^16.4.5",
+        "ethers": "^6.11.1",
         "typescript": "^5.3.3"
     },
     "dependencies": {
-        "as-bignum": "^0.3.0",
-        "ethers": "^6.10.0"
+        "as-bignum": "^0.3.0"
     },
     "peerDependencies": {
         "binaryen": "*"

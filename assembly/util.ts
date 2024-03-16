@@ -1,6 +1,7 @@
 import { u256 } from "as-bignum/assembly";
 import { HostIO } from "./hostio";
 import { Address } from "./Address";
+import { Event } from "./index";
 
 const buffer1 = memory.data(32);
 

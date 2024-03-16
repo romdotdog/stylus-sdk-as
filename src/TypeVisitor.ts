@@ -8,7 +8,7 @@ import {
     Range,
     Type,
     TypeKind
-} from "assemblyscript";
+} from "assemblyscript/dist/assemblyscript.js";
 
 export abstract class TypeVisitor<A, R> {
     constructor(public program: Program, public range: Range) {}

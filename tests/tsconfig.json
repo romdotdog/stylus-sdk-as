@@ -3,5 +3,5 @@
         "strictPropertyInitialization": false,
     },
     "extends": "assemblyscript/std/assembly.json",
-    "include": ["**/*.ts"]
+    "include": ["**/*.contract.ts", "stylus-sdk-as.d.ts"]
 }

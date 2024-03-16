@@ -14,13 +14,18 @@
             "shrinkLevel": 2,
             "converge": false,
             "noAssert": false
+        },
+        "test": {
+            "outFile": "tests/out.wasm",
+            "debug": true,
+            "sourceMap": false,
+            "pedantic": true
         }
     },
     "options": {
-        "bindings": "raw",
         "runtime": "stub",
         "use": "abort=",
         "disable": "bulk-memory",
-        "transform": "/home/rom/stylus-sdk-as/dist/index.js"
+        "transform": "../stylus-sdk-as/dist/src/index.js"
     }
 }

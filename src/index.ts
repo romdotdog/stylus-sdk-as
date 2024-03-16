@@ -1,4 +1,4 @@
-import { Transform } from "assemblyscript/dist/asc.js";
+import { Transform } from "assemblyscript/dist/transform.js";
 import {
     Parser,
     Module,
@@ -18,7 +18,7 @@ import {
     Source,
     FieldDeclaration,
     PropertyPrototype
-} from "assemblyscript";
+} from "assemblyscript/dist/assemblyscript.js";
 import binaryenModule from "types:assemblyscript/src/glue/binaryen";
 import lamearyen from "binaryen";
 import { id } from "ethers";
@@ -35,20 +35,39 @@ import {
     isMethodDeclaration,
     isFieldDeclaration,
     isNamedTypeNode,
-    isPropertyPrototype
+    isPropertyPrototype,
+    isImportStatement
 } from "./guards.js";
 import { Deserializer } from "./Deserializer.js";
 import { Serializer } from "./Serializer.js";
 import { ABI } from "./ABI.js";
+import { fileURLToPath } from "url";
+import path from "path/posix";
 
 // make lamearyen not lame
 const binaryen = lamearyen as unknown as typeof binaryenModule;
 
+const sdkDir = fileURLToPath(new URL("../../assembly", import.meta.url));
+
 export default class extends Transform {
     private entrypoint: ClassDeclaration | null = null;
+    private libInternalPath: string | null = null;
     private contracts: Set<ClassDeclaration> = new Set();
     private events: Set<ClassDeclaration> = new Set();
     private indexed: Set<FieldDeclaration> = new Set();
+
+    constructor() {
+        super();
+        (async () => {
+            // we're adding `assembly/main.ts` as `assembly/index.ts` to the parser here
+            const relativePath = path.relative(this.baseDir, sdkDir);
+            let text = await this.readFile(path.join(relativePath, "main.ts"), this.baseDir);
+
+            let libSourceIndex = this.program.parser.sources.length;
+            this.program.parser.parseFile(text, path.join(relativePath, "index.ts"), true);
+            this.libInternalPath = this.program.parser.sources[libSourceIndex].internalPath;
+        })();
+    }
 
     ensureContract(contract: ClassDeclaration) {
         const members = contract.members;
@@ -94,15 +113,6 @@ export default class extends Transform {
     }
 
     ensureEvent(parser: Parser, event: ClassDeclaration, src: Source) {
-        // TODO: only do this once; this function is called for every event
-        src.statements.unshift(
-            Node.createImportStatement(
-                [Node.createImportDeclaration(Node.createIdentifierExpression("Event", src.range), null, src.range)],
-                Node.createStringLiteralExpression("./Event", src.range),
-                src.range
-            )
-        );
-
         const members = event.members;
         let indexedCount = 0; // counter for the number of Indexed<T> fields, since we can't have more than 3
 
@@ -151,12 +161,77 @@ export default class extends Transform {
         for (const src of parser.sources) {
             if (src.isLibrary) continue;
 
-            // make a copy of the statements so we can prepend statements if needed
-            const stmts = src.statements.slice();
+            for (let i = 0; i < src.statements.length; ++i) {
+                const stmt = src.statements[i];
 
-            for (const stmt of stmts) {
+                if (isImportStatement(stmt)) {
+                    if (this.libInternalPath === null) {
+                        throw new Error("libInternalPath is null");
+                    }
+
+                    if (stmt.internalPath == this.libInternalPath) {
+                        // TODO: split up transforms
+
+                        let eventDecl = null;
+
+                        if (stmt.declarations === null) {
+                            parser.error(
+                                DiagnosticCode.Transform_0_1,
+                                stmt.range,
+                                "stylus-sdk-as",
+                                "Asterisk imports of the library are not allowed."
+                            );
+                        } else {
+                            for (const decl of stmt.declarations) {
+                                if (decl.foreignName.text !== decl.name.text) {
+                                    parser.error(
+                                        DiagnosticCode.Transform_0_1,
+                                        decl.range,
+                                        "stylus-sdk-as",
+                                        "Aliasing imports of the library are not allowed."
+                                    );
+                                }
+
+                                if (decl.name.text === "Event") {
+                                    eventDecl = decl;
+                                }
+                            }
+                        }
+
+                        if (eventDecl !== null) {
+                            let newPath = stmt.path.value;
+                            if (path.basename(newPath).startsWith("index")) {
+                                newPath = path.join(newPath, "..");
+                            }
+
+                            if (newPath == ".") {
+                                newPath = "./" + path.join(newPath, "Event");
+                            } else {
+                                newPath = path.join(newPath, "Event");
+                            }
+
+                            const newImport = Node.createImportStatement(
+                                [Node.createImportDeclaration(eventDecl.foreignName, null, eventDecl.range)],
+                                Node.createStringLiteralExpression(newPath, stmt.path.range),
+                                stmt.range
+                            );
+
+                            src.statements.splice(i, 1, newImport);
+
+                            const parser = this.program.parser;
+                            const internalPath = newImport.internalPath;
+                            if (!parser.seenlog.has(internalPath)) {
+                                parser.backlog.push(internalPath);
+                            }
+                        } else {
+                            src.statements.splice(i, 1);
+                            i--;
+                        }
+                    }
+                    continue;
+                }
+
                 if (!isClassDeclaration(stmt)) continue;
-                if (stmt.range.source.normalizedPath == "assembly/Event.ts") continue;
 
                 const extendsType = stmt.extendsType;
                 if (extendsType && isTypeName(extendsType.name)) {
@@ -329,7 +404,7 @@ export default class extends Transform {
 
         const builder = new ASTBuilder();
         builder.visitBlockStatement(serialize.bodyNode);
-        console.log(builder.finish());
+        //console.log(builder.finish());
     }
 
     createEntrypointRouter() {
@@ -367,10 +442,14 @@ export default class extends Transform {
 
         const range = userEntrypoint.declaration.range;
 
+        // add it to the scope
+        const mangledEntrypointName = `${entrypoint.name}Entrypoint`;
+        userEntrypoint.parent.add(mangledEntrypointName, entrypointProto);
+
         // instantiate the entrypoint
         userEntrypointBlock.statements.push(
             SimpleParser.parseStatement(
-                `const _${entrypoint.name} = changetype<${entrypoint.name}>(__new(${entrypoint.nextMemoryOffset}, ${entrypoint.id}));`,
+                `const _${entrypoint.name} = changetype<${mangledEntrypointName}>(__new(${entrypoint.nextMemoryOffset}, ${entrypoint.id}));`,
                 range,
                 false
             )
@@ -412,7 +491,7 @@ export default class extends Transform {
 
         const builder = new ASTBuilder();
         builder.visitBlockStatement(userEntrypointBlock);
-        console.log(builder.finish());
+        //console.log(builder.finish());
     }
 
     createFunctionSelectorBranch(
@@ -453,7 +532,7 @@ export default class extends Transform {
         }
 
         if (deserializer.offset > 4) {
-            stmts.push(SimpleParser.parseStatement(`assert(input.length >= ${deserializer.offset});`, range));
+            stmts.push(SimpleParser.parseStatement(`assert(len >= ${deserializer.offset});`, range));
             stmts.push(...deserializer.stmts);
         }
 

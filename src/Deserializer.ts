@@ -1,6 +1,5 @@
-import { Class, DiagnosticCode, Program, Range, Statement } from "assemblyscript";
+import { Class, DiagnosticCode, Program, Range, Statement, Type } from "assemblyscript/dist/assemblyscript.js";
 import { TypeVisitor } from "./TypeVisitor.js";
-import { Type } from "types:assemblyscript/src/types";
 import { SimpleParser } from "./SimpleParser.js";
 import { isPropertyPrototype } from "./guards.js";
 
