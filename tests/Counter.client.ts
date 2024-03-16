@@ -1,7 +1,8 @@
 import { Contract, ContractRunner, EventLog } from "ethers";
 import assert from "assert";
 
-export default async function (address: string, provider: ContractRunner) {
+export default async function (contract_: Contract) {
+    const address = await contract_.getAddress();
     const abi = [
         "event NumberChanged(uint256 indexed n)",
         "function number() external view returns (uint256)",
@@ -10,13 +11,14 @@ export default async function (address: string, provider: ContractRunner) {
         "function thisAddress() external view returns (address)"
     ];
 
+    // override the abi for now since we don't have purity inference
+    const contract = new Contract(address, abi, contract_.runner);
+
     async function event(tx: any) {
         const receipt = await tx.wait();
         assert.strictEqual(receipt.logs.length, 1);
         return receipt.logs[0] as EventLog;
     }
-
-    const contract = new Contract(address, abi, provider);
 
     console.log("Checking Counter.thisAddress()");
     assert.strictEqual(await contract.thisAddress(), address);

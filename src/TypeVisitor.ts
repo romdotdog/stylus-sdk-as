@@ -46,10 +46,6 @@ export abstract class TypeVisitor<A, R> {
                 return this.visitIsize(type, a);
             case TypeKind.Usize:
                 return this.visitUsize(type, a);
-            case TypeKind.F32:
-                return this.visitF32(type, a);
-            case TypeKind.F64:
-                return this.visitF64(type, a);
         }
         return this.error();
     }
@@ -106,7 +102,5 @@ export abstract class TypeVisitor<A, R> {
     abstract visitU64(type: Type, a: A): R;
     abstract visitIsize(type: Type, a: A): R;
     abstract visitUsize(type: Type, a: A): R;
-    abstract visitF32(type: Type, a: A): R;
-    abstract visitF64(type: Type, a: A): R;
     abstract error(): R;
 }

@@ -55,6 +55,7 @@ export default class extends Transform {
     private contracts: Set<ClassDeclaration> = new Set();
     private events: Set<ClassDeclaration> = new Set();
     private indexed: Set<FieldDeclaration> = new Set();
+    private abi: string[] = [];
 
     constructor() {
         super();
@@ -328,6 +329,8 @@ export default class extends Transform {
             throw new Error("Event serialize not found");
 
         const abi = new ABI(this.program, event.range);
+        let hrABIParams = [];
+
         const serializer = new Serializer(this.program, event.range, 33, []);
 
         let topicCount = 1;
@@ -357,8 +360,10 @@ export default class extends Transform {
                     );
                     continue;
                 }
-                const ser = abi.visit(type);
-                if (ser === null) {
+                const serNotSpaced = abi.visit(type, false);
+                const serSpaced = abi.visit(type, true);
+                if (serNotSpaced === null || serSpaced === null) {
+                    // TODO: only do this once
                     this.program.error(
                         DiagnosticCode.Transform_0_1,
                         member.declaration.range,
@@ -367,11 +372,13 @@ export default class extends Transform {
                     );
                     continue;
                 }
-                signature += ser;
+                signature += serNotSpaced;
                 if (this.indexed.has(member.fieldDeclaration)) {
+                    hrABIParams.push(`${serSpaced} indexed ${member.name}`);
                     serializer.visit(type, "this." + member.name);
                     topicCount += 1;
                 } else {
+                    hrABIParams.push(`${serSpaced} ${member.name}`);
                     nonIndexed.push([member, type]);
                 }
             }
@@ -405,6 +412,8 @@ export default class extends Transform {
         const builder = new ASTBuilder();
         builder.visitBlockStatement(serialize.bodyNode);
         //console.log(builder.finish());
+
+        this.abi.push(`event ${proto.name}(${hrABIParams.join(", ")})`);
     }
 
     createEntrypointRouter() {
@@ -460,9 +469,15 @@ export default class extends Transform {
         for (const method of entrypoint.members.values()) {
             if (!isFunctionPrototype(method)) continue;
             if (method.declaration.name.kind === NodeKind.Constructor) continue;
+
             const range = method.declaration.range;
-            const serialized = new ABI(this.program, range).functionSelector(method);
-            if (serialized === null) continue;
+            const abi = new ABI(this.program, range);
+            const serialized = abi.functionSelector(method);
+            const hrSerialized = abi.hrABI(method);
+            if (serialized === null || hrSerialized === null) continue;
+
+            this.abi.push(hrSerialized);
+
             const functionSelector = id(serialized);
             const le =
                 functionSelector.slice(8, 10) +
@@ -470,7 +485,7 @@ export default class extends Transform {
                 functionSelector.slice(4, 6) +
                 functionSelector.slice(2, 4);
             const ifClause = <IfStatement>SimpleParser.parseStatement(`if (selector == 0x${le}) { }`, range, false);
-            ifClause.ifTrue = this.createFunctionSelectorBranch(method, entrypointProto, false, range);
+            ifClause.ifTrue = this.createFunctionSelectorBranch(method, userEntrypoint, entrypointProto, false, range);
 
             if (lastIf !== null) {
                 lastIf.ifFalse = ifClause;
@@ -496,6 +511,7 @@ export default class extends Transform {
 
     createFunctionSelectorBranch(
         method: FunctionPrototype,
+        userEntrypoint: FunctionPrototype,
         entrypointProto: ClassPrototype,
         payable: boolean,
         range: Range
@@ -506,8 +522,6 @@ export default class extends Transform {
             stmts.push(SimpleParser.parseStatement(`if (msg_value() != u256.Zero) { return 1; }`, range, false));
         }
 
-        stmts.push(SimpleParser.parseStatement(`_start();`, range, false));
-
         const type = this.program.resolver.resolveType(
             method.functionTypeNode.returnType,
             null,
@@ -517,7 +531,7 @@ export default class extends Transform {
         );
 
         const params: string[] = [];
-        const deserializer = new Deserializer(this.program, range, 4);
+        const deserializer = new Deserializer(this.program, range, 4, userEntrypoint.parent);
         for (let i = 0; i < method.functionTypeNode.parameters.length; ++i) {
             const param = method.functionTypeNode.parameters[i];
 
@@ -532,7 +546,7 @@ export default class extends Transform {
         }
 
         if (deserializer.offset > 4) {
-            stmts.push(SimpleParser.parseStatement(`assert(len >= ${deserializer.offset});`, range));
+            stmts.push(SimpleParser.parseStatement(`assert(len == ${deserializer.offset});`, range));
             stmts.push(...deserializer.stmts);
         }
 
@@ -559,6 +573,7 @@ export default class extends Transform {
     afterCompile() {
         const module = this.program.module;
         this.redirectBuiltInStart(module);
+        this.writeFile("abi", this.abi.join("\n"), this.baseDir);
     }
 
     // this function makes it so that _start is called just before contract invocation

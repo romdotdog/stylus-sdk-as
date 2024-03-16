@@ -103,9 +103,10 @@ export class Serializer extends TypeVisitor<string, void> {
     }
 
     visitIsize(type: Type, expr: string): void {
+        let sizeType = this.program.options.isWasm64 ? "i64" : "i32";
         this.stmts.push(
             SimpleParser.parseStatement(
-                `isize.store(ptr, bswap<isize>(${expr}), ${this.offset + 32 - type.byteSize});`,
+                `${sizeType}.store(ptr, bswap<isize>(${expr}), ${this.offset + 32 - type.byteSize});`,
                 this.range
             )
         );
@@ -113,22 +114,13 @@ export class Serializer extends TypeVisitor<string, void> {
     }
 
     visitUsize(type: Type, expr: string): void {
+        let sizeType = this.program.options.isWasm64 ? "i64" : "i32";
         this.stmts.push(
             SimpleParser.parseStatement(
-                `isize.store(ptr, bswap<usize>(${expr}), ${this.offset + 32 - type.byteSize});`,
+                `${sizeType}.store(ptr, bswap<usize>(${expr}), ${this.offset + 32 - type.byteSize});`,
                 this.range
             )
         );
-        this.offset += 32;
-    }
-
-    visitF32(_type: Type, expr: string): void {
-        this.stmts.push(SimpleParser.parseStatement(`f32.store(ptr, ${expr}, ${this.offset + 28});`, this.range));
-        this.offset += 32;
-    }
-
-    visitF64(_type: Type, expr: string): void {
-        this.stmts.push(SimpleParser.parseStatement(`f64.store(ptr, ${expr}, ${this.offset + 24});`, this.range));
         this.offset += 32;
     }
 

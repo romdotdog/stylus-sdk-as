@@ -38,5 +38,4 @@ export declare namespace HostIO {
     // @ts-ignore
     @external("vm_hooks", "memory_grow")
     export function memory_grow(pages: u16): void;
-    
 }

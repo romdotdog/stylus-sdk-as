@@ -14,6 +14,8 @@ export function user_entrypoint(len: usize): usize {
         return 1;
     }
 
+    _start();
+
     const input = args(len);
     const inputPtr = changetype<usize>(input);
     const selector = i32.load(inputPtr);

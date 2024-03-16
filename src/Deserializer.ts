@@ -1,10 +1,16 @@
-import { Class, DiagnosticCode, Program, Range, Statement, Type } from "assemblyscript/dist/assemblyscript.js";
+import { Class, DiagnosticCode, Program, Range, Statement, Type, Element } from "assemblyscript/dist/assemblyscript.js";
 import { TypeVisitor } from "./TypeVisitor.js";
 import { SimpleParser } from "./SimpleParser.js";
 import { isPropertyPrototype } from "./guards.js";
 
 export class Deserializer extends TypeVisitor<string, void> {
-    constructor(program: Program, range: Range, public offset: number = 0, public stmts: Statement[] = []) {
+    constructor(
+        program: Program,
+        range: Range,
+        public offset: number = 0,
+        public ctx: Element,
+        public stmts: Statement[] = []
+    ) {
         super(program, range);
     }
 
@@ -36,17 +42,12 @@ export class Deserializer extends TypeVisitor<string, void> {
     visitAddress(type: Type, dst: string): void {
         const classInstance = `_address_${this.offset}`;
         this.stmts.push(
-            SimpleParser.parseStatement(`const ${classInstance} = Address.Zero;`, this.range),
             SimpleParser.parseStatement(
-                `${classInstance}.hi1 = bswap<u32>(i32.load(inputPtr, ${this.offset + 12}));`,
-                this.range
-            ),
-            SimpleParser.parseStatement(
-                `${classInstance}.lo2 = bswap<u64>(i64.load(inputPtr, ${this.offset + 16}));`,
-                this.range
-            ),
-            SimpleParser.parseStatement(
-                `${classInstance}.lo1 = bswap<u64>(i64.load(inputPtr, ${this.offset + 24}));`,
+                `const ${classInstance} = new Address(
+                bswap<u64>(i64.load(inputPtr, ${this.offset + 24})),
+                bswap<u64>(i64.load(inputPtr, ${this.offset + 16})),
+                bswap<u32>(i32.load(inputPtr, ${this.offset + 12}))
+            );`,
                 this.range
             ),
             SimpleParser.parseStatement(`${dst} = ${classInstance}`, this.range)
@@ -55,10 +56,14 @@ export class Deserializer extends TypeVisitor<string, void> {
     }
 
     visitStruct(_type: Type, _class: Class, dst: string): void {
+        // add it to the scope
+        const mangledName = `${_class.name}_${(Math.random() * 10000000) | 0}`;
+        this.ctx.add(mangledName, _class.prototype);
+
         const classInstance = `_${_class.name}_${this.offset}`;
         this.stmts.push(
             SimpleParser.parseStatement(
-                `const ${classInstance} = changetype<${_class.name}>(__new(${_class.nextMemoryOffset}, ${_class.id}));`,
+                `const ${classInstance} = changetype<${mangledName}>(__new(${_class.nextMemoryOffset}, ${_class.id}));`,
                 this.range
             )
         );
@@ -149,9 +154,10 @@ export class Deserializer extends TypeVisitor<string, void> {
     }
 
     visitIsize(type: Type, dst: string): void {
+        let sizeType = this.program.options.isWasm64 ? "i64" : "i32";
         this.stmts.push(
             SimpleParser.parseStatement(
-                `${dst} = bswap<isize>(isize.load(inputPtr, ${this.offset + 32 - type.byteSize}));`,
+                `${dst} = bswap<isize>(${sizeType}.load(inputPtr, ${this.offset + 32 - type.byteSize}) as isize);`,
                 this.range
             )
         );
@@ -159,22 +165,13 @@ export class Deserializer extends TypeVisitor<string, void> {
     }
 
     visitUsize(type: Type, dst: string): void {
+        let sizeType = this.program.options.isWasm64 ? "i64" : "i32";
         this.stmts.push(
             SimpleParser.parseStatement(
-                `${dst} = bswap<usize>(isize.load(inputPtr, ${this.offset + 32 - type.byteSize}));`,
+                `${dst} = bswap<usize>(${sizeType}.load(inputPtr, ${this.offset + 32 - type.byteSize}) as usize);`,
                 this.range
             )
         );
-        this.offset += 32;
-    }
-
-    visitF32(_type: Type, dst: string): void {
-        this.stmts.push(SimpleParser.parseStatement(`${dst} = f32.load(inputPtr, ${this.offset + 28});`, this.range));
-        this.offset += 32;
-    }
-
-    visitF64(_type: Type, dst: string): void {
-        this.stmts.push(SimpleParser.parseStatement(`${dst} = f64.load(inputPtr, ${this.offset + 24});`, this.range));
         this.offset += 32;
     }
 
