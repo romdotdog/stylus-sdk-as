@@ -21,7 +21,13 @@ export default function (contract: Contract) {
 
         nestedFunctionPure: "pure",
         nestedFunctionView: "view",
-        nestedFunctionImpure: "nonpayable"
+        nestedFunctionImpure: "nonpayable",
+
+        impureAdvanced: "nonpayable",
+        pureAdvanced: "pure",
+
+        impureAdvanced2: "nonpayable",
+        impureAdvanced3: "nonpayable"
     };
 
     for (const [fn, purity] of Object.entries(asserts)) {

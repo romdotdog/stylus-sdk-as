@@ -88,6 +88,8 @@ class Purity extends Contract {
         call_indirect(f); // default to impure
     }
 
+    // TODO: can we directly cast a function index to a function type?
+
     pureAdvanced(): void {
         const c: C = { f: (): void => {} };
         foo2<C, void>((c: C) => {

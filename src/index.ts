@@ -201,7 +201,7 @@ export default class extends Transform {
                                     );
                                 }
 
-                                // TODO: check if these were already imported
+                                // TODO: clean up
                                 if (decl.name.text === "Event") {
                                     let eventPath;
                                     if (libPath == ".") {
@@ -328,7 +328,6 @@ export default class extends Transform {
 
         this.createEntrypointRouter();
     }
-    // beforeCompile(compiler: Compiler) {}
 
     fillSerializeImpl(event: ClassDeclaration) {
         const proto = this.program.elementsByDeclaration.get(event);

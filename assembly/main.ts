@@ -1,6 +1,7 @@
+// do not remove these imports
 import { u256 } from "as-bignum/assembly";
 import { HostIO } from "./hostio";
-import { load_bytes32, output, store_bytes32, args, msg_value, contract_address } from "./util";
+import { output, args, msg_value } from "./util";
 import { Address } from "./Address";
 
 export function mark_used(): void {

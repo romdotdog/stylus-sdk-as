@@ -1,50 +1,12 @@
-import {
-    BlockStatement,
-    Compiler,
-    DecoratorFlags,
-    DoStatement,
-    Expression,
-    ExpressionStatement,
-    Flow,
-    ForStatement,
-    Function,
-    IfStatement,
-    NodeKind,
-    Program,
-    ReturnStatement,
-    Statement,
-    SwitchStatement,
-    Type,
-    TypeDeclaration,
-    TypeDefinition,
-    VariableStatement,
-    VoidStatement,
-    WhileStatement
-} from "assemblyscript/dist/assemblyscript.js";
-import { hook, isBlock } from "./util.js";
+// for details, look in purityinference.dl
+
+import { Compiler, Function, Program, Type } from "assemblyscript/dist/assemblyscript.js";
+import { hook } from "./util.js";
 
 enum Purity {
     WriteRead, // impure
     Read, // view
     None // pure
-}
-
-class SymbolTable {
-    public symbols: [string, Type][] = [];
-
-    public add(name: string, type: Type) {
-        this.symbols.push([name, type]);
-    }
-
-    public top(): [string, Type] {
-        return this.symbols[this.symbols.length - 1];
-    }
-
-    public pop(name: string) {
-        while (this.top()[0] !== name) {
-            this.symbols.pop();
-        }
-    }
 }
 
 interface FunctionFacts {

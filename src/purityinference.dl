@@ -4,10 +4,18 @@
 // `depends` can either be a call (in the case that the depender is a function identifier)
 // or an assignment (in the case that the depender is a path being assigned to)
 .decl depends(depender: Path, dependee: Path) 
-.input assign
+.input depends
 
 .decl impure(p: Path)
 .output impure
+
+// we are only considering `impure` for this example, so we can ignore `view` and `storage_load_bytes32`
+.decl is_storage_store_bytes32(path: Path) 
+.input is_storage_store_bytes32
+
+// direct hostio calls to store bytes are impure
+impure(p) :-
+    is_storage_store_bytes32(p).
 
 // in the context of a graph where the edges demonstrate `depends` relationships,
 // it is straightforward to show that the purity of a node is the same
