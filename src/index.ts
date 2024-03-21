@@ -17,7 +17,8 @@ import {
     NodeKind,
     Source,
     FieldDeclaration,
-    PropertyPrototype
+    PropertyPrototype,
+    ImportStatement
 } from "assemblyscript/dist/assemblyscript.js";
 import binaryenModule from "types:assemblyscript/src/glue/binaryen";
 import lamearyen from "binaryen";
@@ -37,12 +38,13 @@ import {
     isNamedTypeNode,
     isPropertyPrototype,
     isImportStatement
-} from "./guards.js";
+} from "./util.js";
 import { Deserializer } from "./Deserializer.js";
 import { Serializer } from "./Serializer.js";
 import { ABI } from "./ABI.js";
 import { fileURLToPath } from "url";
 import path from "path/posix";
+import { PurityInference } from "./PurityInference.js";
 
 // make lamearyen not lame
 const binaryen = lamearyen as unknown as typeof binaryenModule;
@@ -170,10 +172,16 @@ export default class extends Transform {
                         throw new Error("libInternalPath is null");
                     }
 
+                    // TODO: handle multiple instances of this
                     if (stmt.internalPath == this.libInternalPath) {
                         // TODO: split up transforms
 
-                        let eventDecl = null;
+                        let imports: ImportStatement[] = [];
+
+                        let libPath = stmt.path.value;
+                        if (path.basename(libPath).startsWith("index")) {
+                            libPath = path.join(libPath, "..");
+                        }
 
                         if (stmt.declarations === null) {
                             parser.error(
@@ -193,41 +201,56 @@ export default class extends Transform {
                                     );
                                 }
 
+                                // TODO: check if these were already imported
                                 if (decl.name.text === "Event") {
-                                    eventDecl = decl;
+                                    let eventPath;
+                                    if (libPath == ".") {
+                                        eventPath = "./" + path.join(libPath, "Event");
+                                    } else {
+                                        eventPath = path.join(libPath, "Event");
+                                    }
+
+                                    imports.push(
+                                        Node.createImportStatement(
+                                            [Node.createImportDeclaration(decl.foreignName, null, decl.range)],
+                                            Node.createStringLiteralExpression(eventPath, stmt.path.range),
+                                            stmt.range
+                                        )
+                                    );
+                                } else if (decl.name.text === "entrypoint") {
+                                    let addressPath;
+                                    if (libPath == ".") {
+                                        addressPath = "./" + path.join(libPath, "Address");
+                                    } else {
+                                        addressPath = path.join(libPath, "Address");
+                                    }
+
+                                    imports.push(
+                                        Node.createImportStatement(
+                                            [
+                                                Node.createImportDeclaration(
+                                                    Node.createIdentifierExpression("Address", decl.foreignName.range),
+                                                    null,
+                                                    decl.range
+                                                )
+                                            ],
+                                            Node.createStringLiteralExpression(addressPath, stmt.path.range),
+                                            stmt.range
+                                        )
+                                    );
                                 }
                             }
                         }
 
-                        if (eventDecl !== null) {
-                            let newPath = stmt.path.value;
-                            if (path.basename(newPath).startsWith("index")) {
-                                newPath = path.join(newPath, "..");
-                            }
-
-                            if (newPath == ".") {
-                                newPath = "./" + path.join(newPath, "Event");
-                            } else {
-                                newPath = path.join(newPath, "Event");
-                            }
-
-                            const newImport = Node.createImportStatement(
-                                [Node.createImportDeclaration(eventDecl.foreignName, null, eventDecl.range)],
-                                Node.createStringLiteralExpression(newPath, stmt.path.range),
-                                stmt.range
-                            );
-
-                            src.statements.splice(i, 1, newImport);
-
-                            const parser = this.program.parser;
+                        for (const newImport of imports) {
                             const internalPath = newImport.internalPath;
                             if (!parser.seenlog.has(internalPath)) {
                                 parser.backlog.push(internalPath);
                             }
-                        } else {
-                            src.statements.splice(i, 1);
-                            i--;
                         }
+
+                        src.statements.splice(i, 1, ...imports);
+                        i += imports.length - 1;
                     }
                     continue;
                 }
@@ -296,21 +319,14 @@ export default class extends Transform {
     }
 
     afterInitialize() {
+        // TODO: unhook
+        const purityInference = new PurityInference(this.program);
+
         for (const event of this.events) {
             this.fillSerializeImpl(event);
         }
 
         this.createEntrypointRouter();
-
-        // hook into compiler
-        // const transform = this;
-        // const oldCompile = Compiler.prototype.compile;
-        // Compiler.prototype.compile = function (this: Compiler) {
-        //     if (this.program === transform.program) {
-        //         transform.beforeCompile.call(transform, this);
-        //     }
-        //     return oldCompile.call(this);
-        // };
     }
     // beforeCompile(compiler: Compiler) {}
 

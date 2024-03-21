@@ -1,0 +1,17 @@
+// paths represent both functions (that cannot be assigned to) and locations in memory (that can be)
+.type Path <: symbol
+
+// `depends` can either be a call (in the case that the depender is a function identifier)
+// or an assignment (in the case that the depender is a path being assigned to)
+.decl depends(depender: Path, dependee: Path) 
+.input assign
+
+.decl impure(p: Path)
+.output impure
+
+// in the context of a graph where the edges demonstrate `depends` relationships,
+// it is straightforward to show that the purity of a node is the same
+// as the purity of its broader connection 
+impure(p) :-
+    depends(p, p2),
+    impure(p2).

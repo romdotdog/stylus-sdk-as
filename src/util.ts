@@ -65,3 +65,22 @@ export function isTypeName(expr: Expression): expr is TypeName {
 export function isNamedTypeNode(expr: Expression): expr is NamedTypeNode {
     return expr.kind === NodeKind.NamedType;
 }
+
+export function hook<T extends { prototype: { [key in U]: (...args: any[]) => any } }, U extends keyof T["prototype"]>(
+    _class: T,
+    key: U,
+    fn: (instance: T, raw: T["prototype"][U], ...args: Parameters<T["prototype"][U]>) => ReturnType<T["prototype"][U]>
+) {
+    const raw = _class.prototype[key] as T["prototype"][U];
+    _class.prototype[key] = function (this: T, ...args: Parameters<T["prototype"][U]>) {
+        return fn(
+            this,
+            raw.bind<T, [], Parameters<T["prototype"][U]>, ReturnType<T["prototype"][U]>>(this) as T["prototype"][U],
+            ...args
+        );
+    };
+
+    return function () {
+        _class.prototype[key] = raw;
+    };
+}

@@ -22,8 +22,9 @@ const jsTests = path.dirname(fileURLToPath(import.meta.url));
 const wasmPath = path.join("tests", "out.wasm");
 
 const files = await fs.readdir("tests");
+const specificTest = process.argv[2];
 for (const file of files) {
-    if (file.endsWith(".client.ts")) {
+    if (file.endsWith(".client.ts") && (specificTest === undefined || specificTest === file)) {
         const test = path.join(jsTests, file.replace(/\.client\.ts$/, ".client.js"));
         const f = await import(test);
 
@@ -31,6 +32,7 @@ for (const file of files) {
 
         console.log(`running ${file}`);
         const { wasmPath, abi } = await compile(contractPath);
+        console.log(abi);
         console.log("done compiling");
         const address = await deploy(wasmPath);
         console.log("done deploying");

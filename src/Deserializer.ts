@@ -1,7 +1,7 @@
 import { Class, DiagnosticCode, Program, Range, Statement, Type, Element } from "assemblyscript/dist/assemblyscript.js";
 import { TypeVisitor } from "./TypeVisitor.js";
 import { SimpleParser } from "./SimpleParser.js";
-import { isPropertyPrototype } from "./guards.js";
+import { isPropertyPrototype } from "./util.js";
 
 export class Deserializer extends TypeVisitor<string, void> {
     constructor(

@@ -1,5 +1,5 @@
 import { Address } from "../assembly/Address";
-import { Contract, Event, Indexed, entrypoint } from "../assembly/index";
+import { Contract, entrypoint } from "../assembly/index";
 
 import { u256 } from "as-bignum/assembly/index";
 

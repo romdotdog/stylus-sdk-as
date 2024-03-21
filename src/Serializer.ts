@@ -1,7 +1,7 @@
 import { Program, Statement, Range, Type, Class, DiagnosticCode } from "assemblyscript/dist/assemblyscript.js";
 import { TypeVisitor } from "./TypeVisitor.js";
 import { SimpleParser } from "./SimpleParser.js";
-import { isPropertyPrototype } from "./guards.js";
+import { isPropertyPrototype } from "./util.js";
 
 // TODO: sign extend?
 export class Serializer extends TypeVisitor<string, void> {

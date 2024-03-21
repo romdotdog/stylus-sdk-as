@@ -7,7 +7,7 @@ import {
     TypeKind
 } from "assemblyscript/dist/assemblyscript.js";
 import { TypeVisitor } from "./TypeVisitor.js";
-import { isPropertyPrototype } from "./guards.js";
+import { isPropertyPrototype } from "./util.js";
 
 export class ABI extends TypeVisitor<boolean, string | null> {
     // TODO: cover solidity reserved words
