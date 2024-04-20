@@ -10,13 +10,11 @@ export abstract class Event {}
 export type Indexed<T> = T;
 
 export abstract class Contract {
-    private _$_address: Address;
-    get address(): Address;
     static fromAddress<T extends Contract>(this: T, address: Address): ExternalContract<T>;
 }
 
 export const ExternalContract: new <T extends Contract>(address: Address) => ExternalContract<T>;
-export type ExternalContract<T extends Contract> = { get address(): Address } & ExternalContractMethods<T>;
+export type ExternalContract<T extends Contract> = ExternalContractMethods<T>;
 
 type AddValue<T> = T extends (...args: infer Args) => infer R ? (...args: [...Args, value?: number]) => R : never;
 type AddGas<T> = T extends (...args: infer Args) => infer R ? (...args: [...Args, gas?: number]) => R : never;

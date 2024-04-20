@@ -34,6 +34,6 @@ class Counter extends Contract {
 
     // function thisAddress() external view returns (address)
     thisAddress(): Address {
-        return this.address;
+        return contract_address();
     }
 }

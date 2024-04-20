@@ -32,7 +32,7 @@ for (const file of files) {
 
         console.log(`running ${file}`);
         const { wasmPath, abi } = await compile(contractPath);
-        console.log(abi);
+        //console.log(abi);
         console.log("done compiling");
         const address = await deploy(wasmPath);
         console.log("done deploying");
