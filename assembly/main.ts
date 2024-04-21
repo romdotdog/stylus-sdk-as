@@ -1,7 +1,7 @@
 // do not remove these imports
 import { u256 } from "as-bignum/assembly";
 import { HostIO } from "./hostio";
-import { output, args, msg_value } from "./util";
+import { output, args, msg_value, align32, emit } from "./util";
 import { Address } from "./Address";
 
 export function mark_used(): void {
@@ -18,7 +18,7 @@ export function user_entrypoint(len: usize): usize {
     _start();
 
     const input = args(len);
-    const inputPtr = changetype<usize>(input);
+    let inputPtr = changetype<usize>(input);
     const selector = i32.load(inputPtr);
 
     // function will be completed by transform

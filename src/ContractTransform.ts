@@ -197,7 +197,7 @@ export class ContractTransform {
 
         const builder = new ASTBuilder();
         builder.visitBlockStatement(userEntrypointBlock);
-        //console.log(builder.finish());
+        console.log(builder.finish());
     }
 
     private getUserEntrypoint() {
@@ -229,6 +229,8 @@ export class ContractTransform {
     ): BlockStatement {
         // statements of the branch
         const stmts: Statement[] = [];
+
+        console.log("Creating function selector branch for", method.name);
 
         if (!payable) {
             stmts.push(SimpleParser.parseStatement(`if (msg_value() != u256.Zero) { return 1; }`, range, false));
@@ -271,7 +273,7 @@ export class ContractTransform {
     }
 
     private deserializeParams(stmts: Statement[], method: FunctionPrototype, ctxElement: Element, range: Range) {
-        const deserializer = new Deserializer(this.program, range, 4, ctxElement);
+        const deserializer = new Deserializer(this.program, range, 4, ctxElement, stmts);
         for (let i = 0; i < method.functionTypeNode.parameters.length; ++i) {
             const param = method.functionTypeNode.parameters[i];
 
@@ -284,20 +286,26 @@ export class ContractTransform {
             deserializer.visit(type, "const " + name);
         }
 
-        stmts.push(SimpleParser.parseStatement(`assert(len == ${deserializer.offset});`, range));
-        stmts.push(...deserializer.stmts);
+        deserializer.visitDynamic();
+
+        // we put the assert after deserialization because the dynamic sizes are not known before
+        stmts.push(SimpleParser.parseStatement(`assert(len == ${deserializer.size});`, range));
     }
 
     private serializeReturn(stmts: Statement[], type: Type, range: Range) {
         const serializer = new Serializer(this.program, range);
+        serializer.inlineStruct = true;
         serializer.visit(type, "_return");
+        serializer.visitDynamic();
+        stmts.push(...serializer.dynamicSizeStmts);
         stmts.push(
             SimpleParser.parseStatement(
-                `const ptr = changetype<usize>(new StaticArray<u8>(${serializer.offset}));`,
+                `let startPtr = changetype<usize>(new StaticArray<u8>(${serializer.maxSize}));`,
                 range
-            )
+            ),
+            SimpleParser.parseStatement(`let ptr = startPtr, structPtr = startPtr;`, range)
         );
         stmts.push(...serializer.stmts);
-        stmts.push(SimpleParser.parseStatement(`HostIO.write_result(ptr, ${serializer.offset});`, range));
+        stmts.push(SimpleParser.parseStatement(`HostIO.write_result(startPtr, ${serializer.size});`, range));
     }
 }

@@ -2,16 +2,30 @@ import { Class, DiagnosticCode, Program, Range, Statement, Type, Element } from 
 import { TypeVisitor } from "./TypeVisitor.js";
 import { SimpleParser } from "./SimpleParser.js";
 import { isPropertyPrototype } from "./util.js";
+import { DynamicChecker } from "./DynamicChecker.js";
 
 export class Deserializer extends TypeVisitor<string, void> {
+    private dynamicStack: (() => void)[] = [];
+
     constructor(
         program: Program,
-        range: Range,
-        public offset: number = 0,
+        public range: Range,
+        private offset: number = 0,
         public ctx: Element,
-        public stmts: Statement[] = []
+        public stmts: Statement[] = [],
+        private dynamicSize: string[] = []
     ) {
-        super(program, range);
+        super(program);
+    }
+
+    get size(): string {
+        return `${this.offset}${this.dynamicSize.map(x => ` + ${x}`).join("")}`; // add all the dynamic sizes
+    }
+
+    visitDynamic(): void {
+        for (const item of this.dynamicStack) {
+            item();
+        }
     }
 
     visitU256(_type: Type, dst: string): void {
@@ -56,6 +70,36 @@ export class Deserializer extends TypeVisitor<string, void> {
     }
 
     visitStruct(_type: Type, _class: Class, dst: string): void {
+        if (_class.prototype.constructorPrototype) {
+            this.program.error(
+                DiagnosticCode.Transform_0_1,
+                this.range,
+                "stylus-sdk-as",
+                "Cannot deserialize types with custom constructors"
+            );
+            return;
+        }
+
+        const dynamic = new DynamicChecker(this.program).visitStruct(_type, _class);
+
+        if (dynamic) {
+            this.dynamicStack.push(() => this.decodeStruct(_type, _class, dst));
+            this.offset += 32;
+        } else {
+            this.decodeStruct(_type, _class, dst);
+        }
+    }
+
+    decodeStruct(_type: Type, _class: Class, dst: string): void {
+        const deserializer = new Deserializer(
+            this.program,
+            this.range,
+            this.offset,
+            this.ctx,
+            this.stmts,
+            this.dynamicSize
+        );
+
         // add it to the scope
         const mangledName = `${_class.name}_${(Math.random() * 10000000) | 0}`;
         this.ctx.add(mangledName, _class.prototype);
@@ -74,9 +118,13 @@ export class Deserializer extends TypeVisitor<string, void> {
                     // bad, property error
                     return this.error();
                 }
-                this.visit(prop.type, `${classInstance}.${name}`);
+                deserializer.visit(prop.type, `${classInstance}.${name}`);
             }
         }
+
+        deserializer.visitDynamic();
+        this.offset = deserializer.offset;
+
         this.stmts.push(SimpleParser.parseStatement(`${dst} = ${classInstance}`, this.range));
     }
 
@@ -173,6 +221,25 @@ export class Deserializer extends TypeVisitor<string, void> {
             )
         );
         this.offset += 32;
+    }
+
+    visitString(type: Type, dst: string): void {
+        this.dynamicStack.push(() => this.decodeString(type, dst));
+        this.offset += 32;
+    }
+
+    decodeString(type: Type, dst: string): void {
+        const len = `length_${this.offset}`;
+        this.visitUsize(type, `let ${len}`);
+        this.stmts.push(
+            SimpleParser.parseStatement(
+                `${dst} = String.UTF8.decodeUnsafe(inputPtr + ${this.offset}, ${len}, false);`,
+                this.range
+            ),
+            SimpleParser.parseStatement(`${len} = align32(${len});`, this.range), // align to 32 because of padding
+            SimpleParser.parseStatement(`inputPtr += ${len};`, this.range) // offset skips the dynamic length
+        );
+        this.dynamicSize.push(len);
     }
 
     error(): void {

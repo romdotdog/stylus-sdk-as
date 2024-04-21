@@ -9,6 +9,15 @@ class ExampleStruct {
     baz: Address;
 }
 
+class StringStruct {
+    val: string;
+}
+
+class StringDPayload {
+    a: string;
+    b: StringStruct;
+}
+
 @entrypoint
 class Serde extends Contract {
     u256(n: u256): u256 {
@@ -81,5 +90,13 @@ class Serde extends Contract {
 
     usize(u: usize): usize {
         return u + 1;
+    }
+
+    _string(s: string): string {
+        return s + "1";
+    }
+
+    _dynamicStruct(s: string, s2: StringStruct): StringDPayload {
+        return { a: s, b: s2 };
     }
 }

@@ -5,6 +5,12 @@ import { Event } from "./index";
 
 const buffer1 = memory.data(32);
 
+// @ts-ignore
+@inline
+export function align32(n: usize): usize {
+    return (n + 31) & ~31;
+}
+
 export function emit<T extends Event>(e: T): void {
     // @ts-ignore: serialize
     const fullData: StaticArray<u8> = e.serialize();

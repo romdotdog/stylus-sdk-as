@@ -4,17 +4,23 @@ import {
     Type,
     DiagnosticCode,
     ReportMode,
-    TypeKind
+    TypeKind,
+    Program,
+    Range
 } from "assemblyscript/dist/assemblyscript.js";
 import { TypeVisitor } from "./TypeVisitor.js";
 import { isPropertyPrototype } from "./util.js";
 
 export class ABI extends TypeVisitor<boolean, string | null> {
+    constructor(program: Program, public range: Range) {
+        super(program);
+    }
+
     // TODO: cover solidity reserved words
     functionSelector(method: FunctionPrototype): string | null {
         let res = method.name + "(";
         for (let i = 0; i < method.functionTypeNode.parameters.length; ++i) {
-            if (i > 0) res += ", ";
+            if (i > 0) res += ",";
             const param = method.functionTypeNode.parameters[i];
             const type = this.program.resolver.resolveType(param.type, null, method, null, ReportMode.Swallow);
             if (type === null) {
@@ -75,7 +81,7 @@ export class ABI extends TypeVisitor<boolean, string | null> {
                 return null;
             }
 
-            res += ` view returns (${ser})`;
+            res += ` view returns ${ser.startsWith("(") ? ser : `(${ser})`}`;
         }
 
         return res;
@@ -171,12 +177,8 @@ export class ABI extends TypeVisitor<boolean, string | null> {
         }
     }
 
-    visitF32(_type: Type): string | null {
-        return this.error();
-    }
-
-    visitF64(_type: Type): string | null {
-        return this.error();
+    visitString(type: Type, a: boolean): string | null {
+        return "string";
     }
 
     // TODO: fix the range here

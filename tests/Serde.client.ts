@@ -1,4 +1,4 @@
-import { Contract } from "ethers";
+import { Contract, AbiCoder, getBytesCopy, Result } from "ethers";
 import assert from "assert";
 
 export default async function (contract: Contract) {
@@ -13,11 +13,10 @@ export default async function (contract: Contract) {
     console.log(await contract._addressp1(address), address);
 
     console.log("Checking struct");
-    assert.deepStrictEqual((await contract._struct({ foo: 42n, bar: true, baz: address })).toArray(), [
-        43n,
-        false,
-        address
-    ]);
+    assert.deepStrictEqual(
+        await contract._struct({ foo: 42n, bar: true, baz: address }),
+        new Result(43n, false, address)
+    );
 
     console.log("Checking bool");
     assert.strictEqual(await contract._bool(true), false);
@@ -66,4 +65,32 @@ export default async function (contract: Contract) {
 
     console.log("Checking usize");
     assert.strictEqual(await contract.usize(42), 43n);
+
+    console.log("Checking string");
+    assert.strictEqual(await contract._string("foo"), "foo1");
+
+    // console.log(
+    //     contract.interface.encodeFunctionData("_dynamicStruct", [
+    //         "foo",
+    //         {
+    //             val: "bar"
+    //         }
+    //     ])
+    // );
+
+    // const fragment = contract.interface.getFunction("_dynamicStruct")!;
+    // const bytes = new AbiCoder().encode(fragment.outputs, [
+    //     "foo",
+    //     {
+    //         val: "bar"
+    //     }
+    // ]);
+
+    // const tx = await contract._dynamicStruct.populateTransaction("foo", { val: "bar" });
+    // const bytes = await contract.runner!.call!(tx);
+    // console.log(new AbiCoder().decode(fragment.outputs, getBytesCopy(bytes)));
+
+    console.log("Checking dynamic struct");
+
+    assert.deepStrictEqual(await contract._dynamicStruct("foo", { val: "bar" }), new Result("foo", new Result("bar")));
 }

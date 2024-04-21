@@ -1,17 +1,7 @@
-import {
-    Class,
-    CommonNames,
-    DeclaredElement,
-    DiagnosticCode,
-    FunctionPrototype,
-    Program,
-    Range,
-    Type,
-    TypeKind
-} from "assemblyscript/dist/assemblyscript.js";
+import { Class, CommonNames, Program, Range, Type, TypeKind } from "assemblyscript/dist/assemblyscript.js";
 
 export abstract class TypeVisitor<A, R> {
-    constructor(public program: Program, public range: Range) {}
+    constructor(public program: Program) {}
 
     visit(type: Type, a: A): R {
         if (type.isValue) {
@@ -61,6 +51,9 @@ export abstract class TypeVisitor<A, R> {
 
     visitClass(type: Type, a: A): R {
         const _class = type.getClass();
+        if (_class === this.program.stringInstance) {
+            return this.visitString(type, a);
+        }
         if (_class !== null && _class.members !== null) {
             if (_class.name === "u256") {
                 return this.visitU256(type, a);
@@ -69,19 +62,9 @@ export abstract class TypeVisitor<A, R> {
             }
 
             const hasPointers = _class.members.has(CommonNames.visit);
-            const hasCtorProto = _class.prototype.constructorPrototype;
 
             if (!hasPointers) {
-                if (hasCtorProto) {
-                    this.program.error(
-                        DiagnosticCode.Transform_0_1,
-                        this.range,
-                        "stylus-sdk-as",
-                        "Cannot serialize types with custom constructors"
-                    );
-                } else {
-                    return this.visitStruct(type, _class, a);
-                }
+                return this.visitStruct(type, _class, a);
             }
         }
         return this.error();
@@ -102,5 +85,6 @@ export abstract class TypeVisitor<A, R> {
     abstract visitU64(type: Type, a: A): R;
     abstract visitIsize(type: Type, a: A): R;
     abstract visitUsize(type: Type, a: A): R;
+    abstract visitString(type: Type, a: A): R;
     abstract error(): R;
 }
