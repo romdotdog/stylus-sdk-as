@@ -18,6 +18,9 @@ export default async function (contract: Contract) {
         new Result(43n, false, address)
     );
 
+    console.log("Checking boolean");
+    assert.strictEqual(await contract._boolean(true), false);
+
     console.log("Checking bool");
     assert.strictEqual(await contract._bool(true), false);
 

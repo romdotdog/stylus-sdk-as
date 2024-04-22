@@ -48,6 +48,10 @@ class Serde extends Contract {
         return _struct;
     }
 
+    _boolean(b: boolean): boolean {
+        return !b;
+    }
+
     _bool(b: bool): bool {
         return !b;
     }
