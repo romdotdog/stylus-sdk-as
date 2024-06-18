@@ -1,7 +1,7 @@
 import { Contract, Event, Indexed, entrypoint } from "../assembly/index";
 
 import { u256 } from "as-bignum/assembly/index";
-import { load_bytes32, output, store_bytes32, args, msg_value, contract_address, emit } from "../assembly/util";
+import { load_bytes32, output, store_bytes32, msg_value, contract_address, emit } from "../assembly/util";
 import { HostIO } from "../assembly/hostio";
 import { Address } from "../assembly/Address";
 

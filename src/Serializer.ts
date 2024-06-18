@@ -36,7 +36,6 @@ export class Serializer extends TypeVisitor<string, void> {
     }
 
     visitDynamic(): void {
-        console.log(this.dynamicStack, this.offset);
         this.stmts.push(SimpleParser.parseStatement(`structPtr = ptr;`, this.range));
         for (const { offset, item } of this.dynamicStack) {
             this.encodeUsizeAtOffset("structPtr", `ptr - structPtr + ${this.offset - this.startOffset}`, offset);

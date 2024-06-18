@@ -58,14 +58,6 @@ export function output(value: u256): void {
     HostIO.write_result(changetype<usize>(buffer1), 32);
 }
 
-export function args(lenUSize: usize): StaticArray<u8> {
-    const len = <i32>lenUSize;
-    assert(len >= 4);
-    const args = new StaticArray<u8>(len);
-    HostIO.read_args(args);
-    return args;
-}
-
 export function contract_address(): Address {
     const address = Address.Zero;
     HostIO.contract_address(changetype<usize>(address));

@@ -16,7 +16,9 @@ import {
     Node,
     Parser,
     Element,
-    BlockStatement
+    BlockStatement,
+    Class,
+    DecoratorFlags
 } from "assemblyscript/dist/assemblyscript.js";
 import {
     isBlock,
@@ -24,7 +26,9 @@ import {
     isFieldDeclaration,
     isFunctionDeclaration,
     isFunctionPrototype,
-    isMethodDeclaration
+    isMethodDeclaration,
+    isNamedTypeNode,
+    isPropertyPrototype
 } from "./util.js";
 import { SimpleParser } from "./SimpleParser.js";
 import { id } from "ethers";
@@ -33,76 +37,54 @@ import { Deserializer } from "./Deserializer.js";
 import { Serializer } from "./Serializer.js";
 
 export class ContractTransform {
-    private contracts: Set<ClassDeclaration> = new Set();
-    private entrypoint: ClassDeclaration | null = null;
+    private contracts: Set<Class> = new Set();
+    private entrypoint: Class | null = null;
 
     constructor(public program: Program, private abi: string[]) {}
 
-    add(parser: Parser, contract: ClassDeclaration) {
-        const members = contract.members;
-        for (let i = 0; i < members.length; ++i) {
-            const member = members[i];
-
-            // if it's a constructor declaration
-            if (isMethodDeclaration(member) && member.name.kind === NodeKind.Constructor) {
-                parser.error(
-                    DiagnosticCode.Transform_0_1,
-                    contract.range,
-                    "stylus-sdk-as",
-                    "Contracts may not have a user-defined constructor."
-                );
-
-                members.splice(i, 1);
-                i--;
-            } else if (isFieldDeclaration(member)) {
-                parser.error(
-                    DiagnosticCode.Transform_0_1,
-                    contract.range,
-                    "stylus-sdk-as",
-                    "Contracts may only have fields whose type is `Storage<T>`."
-                );
-
-                members.splice(i, 1);
-                i--;
-            }
-        }
-
-        members.push(
-            SimpleParser.parseClassMember(
-                `constructor() { ERROR("Do not instantiate contracts directly."); }`,
-                contract
-            )
-        );
-
-        contract.extendsType = null;
-        this.contracts.add(contract);
+    seen(contract: Class) {
+        return this.contracts.has(contract);
     }
 
-    trySetEntrypoint(parser: Parser, _class: ClassDeclaration, reportRange: Range) {
-        if (!this.contracts.has(_class)) {
-            parser.error(
+    add(contract: Class) {
+        if (contract.constructorInstance !== null) {
+            this.program.error(
                 DiagnosticCode.Transform_0_1,
-                reportRange,
+                contract.constructorInstance.declaration.range,
                 "stylus-sdk-as",
-                "Only contracts (classes that extend `Contract`) may be declared as an entrypoint."
+                "Contracts cannot have a user-defined constructor."
             );
         }
 
+        contract.decoratorFlags |= DecoratorFlags.Unmanaged;
+
+        if (contract.members) for (const [name, elem] of contract.members) {
+            if (isPropertyPrototype(elem) && elem.fieldDeclaration !== null) {
+                const field = elem.fieldDeclaration;
+                // TODO: check also for initializers
+                if (field.type && isNamedTypeNode(field.type) && field.type.name.identifier.text === "Storage") {
+                    console.log("TODO: handle storage");
+                } else {
+                    this.program.error(
+                        DiagnosticCode.Transform_0_1,
+                        field.range,
+                        "stylus-sdk-as",
+                        "Contracts may only have fields whose type is `Storage<T>`."
+                    );
+                }
+            }
+        }
+
+        this.contracts.add(contract);
+    }
+
+    trySetEntrypoint(_class: Class, reportRange: Range) {
         if (this.entrypoint !== null) {
-            parser.error(
+            this.program.error(
                 DiagnosticCode.Transform_0_1,
                 reportRange,
                 "stylus-sdk-as",
                 "No more than one contract may be declared as an entrypoint."
-            );
-        }
-
-        if (_class.isGeneric) {
-            return parser.error(
-                DiagnosticCode.Transform_0_1,
-                reportRange,
-                "stylus-sdk-as",
-                "Entrypoint contracts may not be generic since monomorphization may split them into multiple contracts."
             );
         }
 
@@ -119,10 +101,7 @@ export class ContractTransform {
             );
         }
 
-        const entrypointProto = this.program.elementsByDeclaration.get(this.entrypoint);
-        if (entrypointProto === undefined || !isClassPrototype(entrypointProto)) return;
-
-        const entrypoint = this.program.resolver.resolveClass(entrypointProto, null);
+        const entrypoint = this.entrypoint;
         if (entrypoint === null || entrypoint.members === null) return;
 
         // find `user_entrypoint`
@@ -139,12 +118,12 @@ export class ContractTransform {
 
         // add it to the scope
         const mangledEntrypointName = `${entrypoint.name}Entrypoint`;
-        userEntrypoint.parent.add(mangledEntrypointName, entrypointProto);
+        userEntrypoint.parent.add(mangledEntrypointName, entrypoint.prototype);
 
         // instantiate the entrypoint
         userEntrypointBlock.statements.push(
             SimpleParser.parseStatement(
-                `const _${entrypoint.name} = changetype<${mangledEntrypointName}>(__new(${entrypoint.nextMemoryOffset}, ${entrypoint.id}));`,
+                `const _${entrypoint.name} = new ${mangledEntrypointName}();`,
                 range,
                 false
             )
@@ -182,7 +161,7 @@ export class ContractTransform {
                 functionSelector.slice(4, 6) +
                 functionSelector.slice(2, 4);
             const ifClause = <IfStatement>SimpleParser.parseStatement(`if (selector == 0x${le}) { }`, range, false);
-            ifClause.ifTrue = this.createFunctionSelectorBranch(method, userEntrypoint, entrypointProto, range);
+            ifClause.ifTrue = this.createFunctionSelectorBranch(method, userEntrypoint, entrypoint.prototype, range);
 
             if (lastIf !== null) {
                 lastIf.ifFalse = ifClause;

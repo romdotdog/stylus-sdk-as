@@ -1,8 +1,8 @@
 import { Transform } from "assemblyscript/dist/transform.js";
-import { Parser, Module, DiagnosticCode, Node, ImportStatement } from "assemblyscript/dist/assemblyscript.js";
+import { Parser, Module, DiagnosticCode, Node, ImportStatement, Compiler, Resolver, ClassPrototype, SourceKind, ElementKind, ClassDeclaration, CommonFlags, DecoratorFlags } from "assemblyscript/dist/assemblyscript.js";
 import binaryenModule from "types:assemblyscript/src/glue/binaryen";
 import lamearyen from "binaryen";
-import { isClassDeclaration, isTypeName, isIdentifier, isImportStatement } from "./util.js";
+import { isClassDeclaration, isTypeName, isIdentifier, isImportStatement, hook, isClassPrototype } from "./util.js";
 import { fileURLToPath } from "url";
 import path from "path/posix";
 import { PurityInference } from "./PurityInference.js";
@@ -27,134 +27,61 @@ export default class extends Transform {
         this.addMain();
     }
 
-    // we're adding `assembly/main.ts` as `assembly/index.ts` to the parser here
+    // we're parsing `main.ts` as an entry file and
+    // adding `exports.ts` as `index.ts`
     async addMain() {
         const relativePath = path.relative(this.baseDir, sdkDir);
-        let text = await this.readFile(path.join(relativePath, "main.ts"), this.baseDir);
-
+        const mainPath = path.join(relativePath, "main.ts");
+        let main = await this.readFile(mainPath, this.baseDir);
+        this.program.parser.parseFile(main, mainPath, true);
+        
+        let exports = await this.readFile(path.join(relativePath, "exports.ts"), this.baseDir);
         let libSourceIndex = this.program.parser.sources.length;
-        this.program.parser.parseFile(text, path.join(relativePath, "index.ts"), true);
+        this.program.parser.parseFile(exports, path.join(relativePath, "index.ts"), false); // rename to index.ts
         this.libInternalPath = this.program.parser.sources[libSourceIndex].internalPath;
     }
 
-    afterParse(parser: Parser) {
-        for (const src of parser.sources) {
-            if (src.isLibrary) continue;
-
-            let importsContract = false;
-            let importsEvent = false;
-
-            function handleImport(stmt: ImportStatement): ImportStatement[] | null {
-                if (stmt.declarations === null) {
-                    parser.error(
-                        DiagnosticCode.Transform_0_1,
-                        stmt.range,
-                        "stylus-sdk-as",
-                        "Asterisk imports of the library are not allowed."
-                    );
-                    return null;
-                }
-
-                let libPath = stmt.path.value;
-                if (path.basename(libPath).startsWith("index")) {
-                    libPath = path.join(libPath, "..");
-                }
-
-                let imports: ImportStatement[] = [];
-
-                for (const decl of stmt.declarations) {
-                    if (decl.foreignName.text !== decl.name.text) {
-                        parser.error(
-                            DiagnosticCode.Transform_0_1,
-                            decl.range,
-                            "stylus-sdk-as",
-                            "Aliasing imports of the library is not allowed."
-                        );
-                    }
-
-                    switch (decl.name.text) {
-                        case "Contract":
-                            importsContract = true;
-                            break;
-                        case "Event": {
-                            importsEvent = true;
-
-                            // get path to "assembly/Event"
-                            let eventPath;
-                            if (libPath == ".") {
-                                eventPath = "./" + path.join(libPath, "Event");
-                            } else {
-                                eventPath = path.join(libPath, "Event");
-                            }
-
-                            // import `Event`
-                            imports.push(
-                                Node.createImportStatement(
-                                    [Node.createImportDeclaration(decl.foreignName, null, decl.range)],
-                                    Node.createStringLiteralExpression(eventPath, stmt.path.range),
-                                    stmt.range
-                                )
-                            );
-                            break;
-                        }
-                    }
-                }
-
-                return imports;
+    findEntrypoints() {
+        for (const file of this.program.filesByName.values()) {
+            if (file.source.sourceKind !== SourceKind.UserEntry || file.exports === null) {
+                continue;
             }
 
-            for (let i = 0; i < src.statements.length; ++i) {
-                const stmt = src.statements[i];
+            for (const [name, elem] of file.exports) {
+                if (!isClassPrototype(elem)) continue;
 
-                if (isImportStatement(stmt)) {
-                    if (this.libInternalPath === null) {
-                        throw new Error("libInternalPath is null");
-                    }
+                const decl = elem.declaration as ClassDeclaration;
+                if (decl.isGeneric) continue;
 
-                    // TODO: handle multiple instances of this
-                    if (stmt.internalPath == this.libInternalPath) {
-                        // TODO: split up transforms
-
-                        const imports = handleImport(stmt);
-
-                        if (imports !== null) {
-                            for (const newImport of imports) {
-                                const internalPath = newImport.internalPath;
-                                if (!parser.seenlog.has(internalPath)) {
-                                    parser.backlog.push(internalPath);
-                                }
-                            }
-
-                            src.statements.splice(i, 1, ...imports);
-                            i += imports.length - 1;
-                        }
-                    }
-                    continue;
-                }
-
-                if (!isClassDeclaration(stmt)) continue;
-
-                const extendsType = stmt.extendsType;
-                if (extendsType && isTypeName(extendsType.name)) {
-                    const extendsName = extendsType.name.identifier.text;
-                    if (extendsName === "Contract" && importsContract) {
-                        this.contractTransform.add(parser, stmt);
-                    } else if (extendsName === "Event" && importsEvent) {
-                        this.eventTransform.add(parser, stmt);
-                    }
-                }
-
-                // check for @entrypoint
-                if (!stmt.decorators) continue;
-                for (const decorator of stmt.decorators) {
-                    if (!isIdentifier(decorator.name) || decorator.name.text !== "entrypoint") continue;
-                    this.contractTransform.trySetEntrypoint(parser, stmt, decorator.range);
-                }
+                const _class = this.program.resolver.resolveClass(elem, null);
+                if (_class) file.exports.delete(name);
             }
         }
     }
 
     afterInitialize() {
+        const libFile = this.program.filesByName.get(this.libInternalPath!)!;
+        const contractBase = libFile.lookupExport("Contract") as ClassPrototype;
+        contractBase.decoratorFlags |= DecoratorFlags.Unmanaged;
+
+        hook(Resolver, "resolveClass", (resolver, raw, prototype, typeArguments, ctxTypes, reportMode) => {
+            const _class = raw(prototype, typeArguments, ctxTypes, reportMode);
+
+            if (prototype !== contractBase && _class !== null && !this.contractTransform.seen(_class) && _class.extendsPrototype(contractBase)) {
+                this.contractTransform.add(_class);
+                
+                const decorators = _class.decoratorNodes;
+                if (decorators === null) return _class;
+                for (const decorator of decorators) {
+                    if (!isIdentifier(decorator.name) || decorator.name.text !== "entrypoint") continue;
+                    this.contractTransform.trySetEntrypoint(_class, decorator.range);
+                }
+            }
+            
+            return _class;
+        });
+
+        this.findEntrypoints();
         this.eventTransform.fillSerializeImpls();
         this.contractTransform.createEntrypointRouter();
     }
@@ -178,10 +105,10 @@ export default class extends Transform {
             "Top level statements will be run every contract invocation."
         );
 
-        module.removeFunction("assembly/index/_start");
+        module.removeFunction("assembly/main/_start");
 
-        // allocate "assembly/index/_start" or use an existing cached allocation
-        let cStr = module.allocStringCached("assembly/index/_start");
+        // allocate "assembly/main/_start" or use an existing cached allocation
+        let cStr = module.allocStringCached("assembly/main/_start");
 
         // duplicate start into newFuncRef
         let params = binaryen._BinaryenFunctionGetParams(start);

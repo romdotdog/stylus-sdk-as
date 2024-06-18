@@ -45,7 +45,7 @@ for (const file of files) {
     }
 }
 
-await fs.unlink(wasmPath);
+//await fs.unlink(wasmPath);
 
 async function compile(contract: string) {
     let abi = "";
@@ -95,7 +95,8 @@ async function deploy(wasmPath: string) {
 
     if (address === undefined) {
         console.log(stdout);
-        throw new Error("failed to retrieve address");
+        console.log("failed to retrieve address");
+        process.exit(1);
     }
 
     return address;

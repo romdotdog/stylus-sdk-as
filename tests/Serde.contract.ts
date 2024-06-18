@@ -19,7 +19,7 @@ class StringDPayload {
 }
 
 @entrypoint
-class Serde extends Contract {
+export class Serde extends Contract {
     u256(n: u256): u256 {
         // @ts-ignore
         return n + u256.One;
@@ -28,12 +28,14 @@ class Serde extends Contract {
     // TODO: put the underscores back to test reserved keywords
     _address(_address: Address): Address {
         const address2 = new Address(_address.lo1, _address.lo2, _address.hi1);
+        
         address2.switchEndian();
         address2.switchEndian();
 
         assert(address2.lo1 == _address.lo1 && address2.lo2 == _address.lo2 && address2.hi1 == _address.hi1);
 
-        return _address;
+        //assert(address2.lo1 != 0 && address2.lo2 != 0 && address2.hi1 != 0);
+        return address2;
     }
 
     _addressp1(_address: Address): Address {

@@ -7,6 +7,9 @@ export default async function (contract: Contract) {
     console.log("Checking u256");
     assert.strictEqual(await contract.u256(42n), 43n);
 
+    const n = 2n ** 256n - 2n;
+    assert.strictEqual(await contract.u256(n), n + 1n);
+
     console.log("Checking address");
     assert.strictEqual(await contract._address(address), address);
 
