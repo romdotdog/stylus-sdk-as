@@ -155,10 +155,16 @@ export class ContractTransform {
         // the last `if` or `else if` branch
         let lastIf: IfStatement | null = null;
 
+        const nonpayable = []; // TODO: payable
+
         for (const method of entrypoint.members.values()) {
             if (!isFunctionPrototype(method)) continue;
             if (method.declaration.name.kind === NodeKind.Constructor) continue;
 
+            nonpayable.push(method);
+        }
+
+        for (const method of nonpayable) {
             const range = method.declaration.range;
 
             // generate function selector and abi
@@ -176,7 +182,7 @@ export class ContractTransform {
                 functionSelector.slice(4, 6) +
                 functionSelector.slice(2, 4);
             const ifClause = <IfStatement>SimpleParser.parseStatement(`if (selector == 0x${le}) { }`, range, false);
-            ifClause.ifTrue = this.createFunctionSelectorBranch(method, userEntrypoint, entrypointProto, false, range);
+            ifClause.ifTrue = this.createFunctionSelectorBranch(method, userEntrypoint, entrypointProto, range);
 
             if (lastIf !== null) {
                 lastIf.ifFalse = ifClause;
@@ -190,7 +196,9 @@ export class ContractTransform {
         }
 
         if (ifStmt) {
-            userEntrypointBlock.statements.push(ifStmt);
+            const nonpayableIfStmt = <IfStatement>SimpleParser.parseStatement(`if (msg_value() == u256.Zero) { }`, range, false);
+            nonpayableIfStmt.ifTrue = ifStmt;
+            userEntrypointBlock.statements.push(nonpayableIfStmt);
         }
 
         userEntrypointBlock.statements.push(SimpleParser.parseStatement(`return 0;`, range, false));
@@ -224,17 +232,12 @@ export class ContractTransform {
         method: FunctionPrototype,
         userEntrypoint: FunctionPrototype,
         entrypointProto: ClassPrototype,
-        payable: boolean,
         range: Range
     ): BlockStatement {
         // statements of the branch
         const stmts: Statement[] = [];
 
         console.log("Creating function selector branch for", method.name);
-
-        if (!payable) {
-            stmts.push(SimpleParser.parseStatement(`if (msg_value() != u256.Zero) { return 1; }`, range, false));
-        }
 
         // resolve the return type
         const type = this.program.resolver.resolveType(
