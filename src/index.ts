@@ -62,12 +62,17 @@ export default class extends Transform {
     afterInitialize() {
         const libFile = this.program.filesByName.get(this.libInternalPath!)!;
         const contractBase = libFile.lookupExport("Contract") as ClassPrototype;
-        contractBase.decoratorFlags |= DecoratorFlags.Unmanaged;
+        const eventBase = libFile.lookupExport("Event") as ClassPrototype;
 
         hook(Resolver, "resolveClass", (resolver, raw, prototype, typeArguments, ctxTypes, reportMode) => {
+            if (prototype !== eventBase && !prototype.instanceMembers?.has("serialize") && prototype.extends(eventBase)) {
+                this.eventTransform.fillSerializeImpl(prototype);
+            }
+            
             const _class = raw(prototype, typeArguments, ctxTypes, reportMode);
 
-            if (prototype !== contractBase && _class !== null && !this.contractTransform.seen(_class) && _class.extendsPrototype(contractBase)) {
+            if (_class !== null)
+            if (prototype !== contractBase && !this.contractTransform.seen(_class) && _class.extendsPrototype(contractBase)) {
                 this.contractTransform.add(_class);
                 
                 const decorators = _class.decoratorNodes;
@@ -82,7 +87,6 @@ export default class extends Transform {
         });
 
         this.findEntrypoints();
-        this.eventTransform.fillSerializeImpls();
         this.contractTransform.createEntrypointRouter();
     }
 

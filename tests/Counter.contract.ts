@@ -1,8 +1,7 @@
 import { Contract, Event, Indexed, entrypoint } from "../assembly/index";
 
 import { u256 } from "as-bignum/assembly/index";
-import { load_bytes32, output, store_bytes32, msg_value, contract_address, emit } from "../assembly/util";
-import { HostIO } from "../assembly/hostio";
+import { load_bytes32, store_bytes32, contract_address, emit } from "../assembly/util";
 import { Address } from "../assembly/Address";
 
 // event NumberChanged(uint256 indexed n)
@@ -11,7 +10,7 @@ class NumberChanged extends Event {
 }
 
 @entrypoint
-class Counter extends Contract {
+export class Counter extends Contract {
     // function number() external view returns (uint256)
     number(): u256 {
         return load_bytes32(u256.Zero);

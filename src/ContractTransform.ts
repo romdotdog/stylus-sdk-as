@@ -56,8 +56,6 @@ export class ContractTransform {
             );
         }
 
-        contract.decoratorFlags |= DecoratorFlags.Unmanaged;
-
         if (contract.members) for (const [name, elem] of contract.members) {
             if (isPropertyPrototype(elem) && elem.fieldDeclaration !== null) {
                 const field = elem.fieldDeclaration;

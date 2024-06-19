@@ -4,7 +4,7 @@ import { load_bytes32, store_bytes32 } from "../assembly/util";
 import { u256 } from "as-bignum/assembly/index";
 
 @entrypoint
-class Purity extends Contract {
+export class Purity extends Contract {
     basicPure(): u32 {
         return 0;
     }

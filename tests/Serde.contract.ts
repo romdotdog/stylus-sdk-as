@@ -34,7 +34,6 @@ export class Serde extends Contract {
 
         assert(address2.lo1 == _address.lo1 && address2.lo2 == _address.lo2 && address2.hi1 == _address.hi1);
 
-        //assert(address2.lo1 != 0 && address2.lo2 != 0 && address2.hi1 != 0);
         return address2;
     }
 
