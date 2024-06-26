@@ -4,6 +4,4 @@ export abstract class Event {
 
 export abstract class Contract {}
 
-export function entrypoint(): void {}
-
 export type Indexed<T> = T;

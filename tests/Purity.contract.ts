@@ -1,9 +1,8 @@
-import { Contract, Event, Indexed, entrypoint } from "../assembly/index";
+import { Contract, Event, Indexed } from "../assembly/index";
 import { load_bytes32, store_bytes32 } from "../assembly/util";
 
 import { u256 } from "as-bignum/assembly/index";
 
-@entrypoint
 export class Purity extends Contract {
     basicPure(): u32 {
         return 0;

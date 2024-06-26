@@ -3,6 +3,7 @@ import { u256 } from "as-bignum/assembly";
 import { HostIO } from "./hostio";
 import { msg_value, align32 } from "./util";
 import { Address } from "./Address";
+// do not remove these imports
 
 export function mark_used(): void {
     HostIO.memory_grow(0);

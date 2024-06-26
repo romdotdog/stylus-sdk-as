@@ -1,4 +1,4 @@
-import { Contract, Event, Indexed, entrypoint } from "../assembly/index";
+import { Contract, Event, Indexed } from "../assembly/index";
 
 import { u256 } from "as-bignum/assembly/index";
 import { load_bytes32, store_bytes32, contract_address, emit } from "../assembly/util";
@@ -9,7 +9,6 @@ class NumberChanged extends Event {
     n: Indexed<u256>;
 }
 
-@entrypoint
 export class Counter extends Contract {
     // function number() external view returns (uint256)
     number(): u256 {

@@ -1,10 +1,6 @@
 type Address = import("./Address").Address;
 type u256 = import("as-bignum").u256;
 
-type Constructor = (new (...args: any[]) => unknown) | (abstract new (...args: any[]) => unknown);
-
-export function entrypoint(c: Constructor): void;
-
 export abstract class Event {}
 
 export type Indexed<T> = T;

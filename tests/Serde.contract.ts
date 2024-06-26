@@ -1,5 +1,5 @@
 import { Address } from "../assembly/Address";
-import { Contract, entrypoint } from "../assembly/index";
+import { Contract } from "../assembly/index";
 
 import { u256 } from "as-bignum/assembly/index";
 
@@ -18,7 +18,6 @@ class StringDPayload {
     b: StringStruct;
 }
 
-@entrypoint
 export class Serde extends Contract {
     u256(n: u256): u256 {
         // @ts-ignore

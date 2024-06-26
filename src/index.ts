@@ -54,7 +54,10 @@ export default class extends Transform {
                 if (decl.isGeneric) continue;
 
                 const _class = this.program.resolver.resolveClass(elem, null);
-                if (_class) file.exports.delete(name);
+                if (_class) {
+                    file.exports.delete(name);
+                    this.contractTransform.trySetEntrypoint(_class, _class.declaration.name.range);
+                }
             }
         }
     }
@@ -74,13 +77,6 @@ export default class extends Transform {
             if (_class !== null)
             if (prototype !== contractBase && !this.contractTransform.seen(_class) && _class.extendsPrototype(contractBase)) {
                 this.contractTransform.add(_class);
-                
-                const decorators = _class.decoratorNodes;
-                if (decorators === null) return _class;
-                for (const decorator of decorators) {
-                    if (!isIdentifier(decorator.name) || decorator.name.text !== "entrypoint") continue;
-                    this.contractTransform.trySetEntrypoint(_class, decorator.range);
-                }
             }
             
             return _class;
@@ -101,13 +97,6 @@ export default class extends Transform {
     redirectBuiltInStart(module: Module) {
         const start = module.getFunction("~start");
         if (start === 0) return;
-
-        this.program.warning(
-            DiagnosticCode.Transform_0_1,
-            null,
-            "stylus-sdk-as",
-            "Top level statements will be run every contract invocation."
-        );
 
         module.removeFunction("assembly/main/_start");
 

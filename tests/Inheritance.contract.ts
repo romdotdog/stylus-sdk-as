@@ -1,4 +1,4 @@
-import { Contract, entrypoint } from "../assembly/index";
+import { Contract } from "../assembly/index";
 
 class Parent extends Contract {
     get(): u32 {
@@ -6,5 +6,4 @@ class Parent extends Contract {
     }
 }
 
-@entrypoint
 export class Child extends Parent {}
