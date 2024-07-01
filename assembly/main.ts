@@ -16,7 +16,7 @@ export function user_entrypoint(len: usize): usize {
         return 1;
     }
 
-    _start();
+    gc_start();
 
     const lenI32 = <i32>len;
     assert(lenI32 >= 4);
@@ -29,4 +29,4 @@ export function user_entrypoint(len: usize): usize {
     // function will be completed by transform
 }
 
-function _start(): void {}
+export function gc_start(): void {}

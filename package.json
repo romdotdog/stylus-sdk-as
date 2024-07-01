@@ -3,6 +3,7 @@
     "type": "module",
     "author": "romdotdog",
     "version": "0.0.0",
+    "files": ["dist/src", "assembly", "asconfig.json"],
     "scripts": {
         "asbuild:debug": "asc assembly/index.ts --target debug",
         "asbuild:release": "asc assembly/index.ts --target release",

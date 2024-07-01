@@ -98,16 +98,20 @@ export default class extends Transform {
         const start = module.getFunction("~start");
         if (start === 0) return;
 
-        module.removeFunction("assembly/main/_start");
+        // allocate "gc_start" or use an existing cached allocation
+        let gc_startStr = module.allocStringCached("gc_start");
 
-        // allocate "assembly/main/_start" or use an existing cached allocation
-        let cStr = module.allocStringCached("assembly/main/_start");
+        const gc_startExport = binaryen._BinaryenGetExport(module.ref, gc_startStr);
+        const gc_startCName = binaryen._BinaryenExportGetValue(gc_startExport);
+        const gc_startName = module.readStringCached(gc_startCName)!;
+        module.removeExport("gc_start");
+        module.removeFunction(gc_startName);
 
         // duplicate start into newFuncRef
         let params = binaryen._BinaryenFunctionGetParams(start);
         let results = binaryen._BinaryenFunctionGetResults(start);
         let body = binaryen._BinaryenFunctionGetBody(start);
-        let newFuncRef = binaryen._BinaryenAddFunction(module.ref, cStr, params, results, 0, 0, body);
+        let newFuncRef = binaryen._BinaryenAddFunction(module.ref, gc_startCName, params, results, 0, 0, body);
         if (this.program.options.sourceMap || this.program.options.debugInfo) {
             let func = this.program.searchFunctionByRef(newFuncRef);
             if (func) func.addDebugInfo(module, newFuncRef);
