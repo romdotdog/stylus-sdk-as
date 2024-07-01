@@ -36,6 +36,6 @@ export declare namespace HostIO {
     export function write_result(data: usize, len: usize): void;
 
     // @ts-ignore
-    @external("vm_hooks", "memory_grow")
-    export function memory_grow(pages: u16): void;
+    @external("vm_hooks", "pay_for_memory_grow")
+    export function pay_for_memory_grow(pages: u16): void;
 }

@@ -6,7 +6,7 @@ import { Address } from "./Address";
 // do not remove these imports
 
 export function mark_used(): void {
-    HostIO.memory_grow(0);
+    HostIO.pay_for_memory_grow(0);
     assert(false);
 }
 
